@@ -310,7 +310,7 @@ def main():
             had_error = True
             continue
 
-        print(f"Repository: {repo_name}")
+        print(f"Repository: **{repo_name}**")
         for pr_number in sorted(messages, key=lambda n: int(n)):
             message = messages[pr_number]
             safe_message = message.replace('"', '\\"')
