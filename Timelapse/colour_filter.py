@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from timelapse_lib import (
+    IMAGE_SORT_MODES,
     extract_colour_images,
     log_step,
     print_extraction_summary,
@@ -21,6 +22,7 @@ def run_colour_filter(args: argparse.Namespace) -> int:
     log_step(
         "colour-filter",
         f"Starting extraction with max_images={args.max_images}, "
+        f"sort_by={args.sort_by}, "
         f"channel_delta={args.channel_delta}, "
         f"minimum_colour={args.colour_pixel_ratio_percent:.2f}%.",
     )
@@ -31,6 +33,7 @@ def run_colour_filter(args: argparse.Namespace) -> int:
         channel_delta=args.channel_delta,
         colour_pixel_ratio=colour_pixel_ratio,
         max_images=args.max_images,
+        sort_by=args.sort_by,
         workers=args.workers,
     )
     print_extraction_summary(stats, args.output_dir)
@@ -65,7 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-images",
         type=int,
         default=0,
-        help="Maximum number of images to process, using sorted order. Use 0 for no limit.",
+        help="Maximum number of images to process after sorting. Use 0 for no limit.",
+    )
+    parser.add_argument(
+        "--sort-by",
+        choices=IMAGE_SORT_MODES,
+        default="filename",
+        help="Sort images by filename, date taken, or date modified.",
     )
     parser.add_argument(
         "--workers",

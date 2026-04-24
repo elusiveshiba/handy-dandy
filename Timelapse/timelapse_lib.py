@@ -5,10 +5,12 @@ import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 PIPELINE_STEPS = ("colour-filter", "difference-filter", "combine-video")
+IMAGE_SORT_MODES = ("filename", "date-taken", "date-modified")
 
 
 @dataclass
@@ -88,15 +90,68 @@ def validate_percent(name: str, value: float) -> float:
     return value / 100.0
 
 
-def iter_image_paths(input_dir: Path, max_images: int | None = None) -> list[Path]:
+def parse_exif_datetime(value: object) -> datetime | None:
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="ignore")
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def date_taken_for(image_path: Path) -> datetime | None:
+    Image, _, _ = require_pillow()
+    try:
+        with Image.open(image_path) as image:
+            exif = image.getexif()
+    except Exception:
+        return None
+
+    if not exif:
+        return None
+
+    for tag in (36867, 36868, 306):
+        parsed = parse_exif_datetime(exif.get(tag))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def image_sort_key(path: Path, input_dir: Path, sort_by: str) -> tuple[object, ...]:
+    filename = path.name.casefold()
+    relative_path = str(path.relative_to(input_dir)).casefold()
+    if sort_by == "filename":
+        return (filename, relative_path)
+
+    if sort_by == "date-modified":
+        return (path.stat().st_mtime_ns, filename, relative_path)
+
+    taken_at = date_taken_for(path)
+    if taken_at is not None:
+        return (taken_at, filename, relative_path)
+    return (datetime.fromtimestamp(path.stat().st_mtime), filename, relative_path)
+
+
+def iter_image_paths(
+    input_dir: Path,
+    max_images: int | None = None,
+    sort_by: str = "filename",
+) -> list[Path]:
     if not input_dir.exists():
         raise SystemExit(f"Input directory does not exist: {input_dir}")
+    if sort_by not in IMAGE_SORT_MODES:
+        raise SystemExit(
+            f"sort_by must be one of {', '.join(IMAGE_SORT_MODES)}. Received {sort_by}."
+        )
 
-    image_paths = sorted(
+    image_paths = list(
         path
         for path in input_dir.rglob("*")
         if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
     )
+    image_paths.sort(key=lambda path: image_sort_key(path, input_dir, sort_by))
     if max_images is None or max_images <= 0:
         return image_paths
     return image_paths[:max_images]
@@ -190,17 +245,18 @@ def extract_colour_images(
     channel_delta: int,
     colour_pixel_ratio: float,
     max_images: int | None,
+    sort_by: str = "filename",
     workers: int = 1,
 ) -> ExtractionStats:
     stats = ExtractionStats()
-    image_paths = iter_image_paths(input_dir, max_images=max_images)
+    image_paths = iter_image_paths(input_dir, max_images=max_images, sort_by=sort_by)
     total_images = len(image_paths)
     worker_count = safe_worker_count(workers, total_images)
 
     log_step(
         "colour-filter",
         f"Found {total_images} images in {input_dir}. Copying colour images to {output_dir} "
-        f"with workers={worker_count}.",
+        f"sorted by {sort_by}, with workers={worker_count}.",
     )
 
     if worker_count == 1:
@@ -320,13 +376,14 @@ def filter_images(
     max_images: int | None,
     prefilter_size: int = 0,
     prefilter_band: float = 0.0,
+    sort_by: str = "filename",
     workers: int = 1,
 ) -> tuple[list[Path], FilterStats]:
     stats = FilterStats()
     kept_paths: list[Path] = []
     previous_kept_frame = None
     previous_prefilter_frame = None
-    image_paths = iter_image_paths(input_dir, max_images=max_images)
+    image_paths = iter_image_paths(input_dir, max_images=max_images, sort_by=sort_by)
     total_images = len(image_paths)
     worker_count = safe_worker_count(workers, total_images)
     normalized_prefilter_size = normalize_prefilter_size(prefilter_size, comparison_size)
@@ -335,7 +392,8 @@ def filter_images(
         "difference-filter",
         f"Found {total_images} images in {input_dir}. Copying kept frames to "
         f"{filtered_dir} with a {format_ratio(change_threshold)} change threshold, "
-        f"prefilter_size={normalized_prefilter_size}, workers={worker_count}.",
+        f"prefilter_size={normalized_prefilter_size}, sorted by {sort_by}, "
+        f"workers={worker_count}.",
     )
 
     if worker_count == 1:
@@ -471,12 +529,14 @@ def build_video_from_directory(
     output_video: Path,
     fps: int,
     max_images: int,
+    sort_by: str = "filename",
 ) -> int:
-    image_paths = iter_image_paths(input_dir, max_images=max_images)
+    image_paths = iter_image_paths(input_dir, max_images=max_images, sort_by=sort_by)
     total_images = len(image_paths)
     log_step(
         "combine-video",
-        f"Found {total_images} images in {input_dir}. Combining them into {output_video}.",
+        f"Found {total_images} images in {input_dir}. Combining them into {output_video}, "
+        f"sorted by {sort_by}.",
     )
     create_video(image_paths, output_video, fps)
     print(f"Frames combined: {total_images}")

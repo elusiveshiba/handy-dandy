@@ -5,7 +5,13 @@ import argparse
 import time
 from pathlib import Path
 
-from timelapse_lib import filter_images, log_step, print_filter_summary, validate_percent
+from timelapse_lib import (
+    IMAGE_SORT_MODES,
+    filter_images,
+    log_step,
+    print_filter_summary,
+    validate_percent,
+)
 
 
 def run_difference_filter(args: argparse.Namespace) -> int:
@@ -16,6 +22,7 @@ def run_difference_filter(args: argparse.Namespace) -> int:
     log_step(
         "difference-filter",
         f"Starting difference filter with max_images={args.max_images}, "
+        f"sort_by={args.sort_by}, "
         f"pixel_delta={args.pixel_delta}, "
         f"change_threshold={args.change_threshold_percent:.2f}%.",
     )
@@ -31,6 +38,7 @@ def run_difference_filter(args: argparse.Namespace) -> int:
             "prefilter band percent",
             args.prefilter_band_percent,
         ),
+        sort_by=args.sort_by,
         workers=args.workers,
     )
     print_filter_summary(stats, args.output_dir)
@@ -65,7 +73,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-images",
         type=int,
         default=0,
-        help="Maximum number of images to process, using sorted order. Use 0 for no limit.",
+        help="Maximum number of images to process after sorting. Use 0 for no limit.",
+    )
+    parser.add_argument(
+        "--sort-by",
+        choices=IMAGE_SORT_MODES,
+        default="filename",
+        help="Sort images by filename, date taken, or date modified.",
     )
     parser.add_argument(
         "--prefilter-size",

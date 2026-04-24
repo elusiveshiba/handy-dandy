@@ -5,19 +5,21 @@ import argparse
 import time
 from pathlib import Path
 
-from timelapse_lib import build_video_from_directory, log_step
+from timelapse_lib import IMAGE_SORT_MODES, build_video_from_directory, log_step
 
 
 def run_combine_video(args: argparse.Namespace) -> int:
     log_step(
         "combine-video",
-        f"Starting video combine with max_images={args.max_images}, fps={args.fps}.",
+        f"Starting video combine with max_images={args.max_images}, "
+        f"sort_by={args.sort_by}, fps={args.fps}.",
     )
     return build_video_from_directory(
         input_dir=args.input_dir,
         output_video=args.output,
         fps=args.fps,
         max_images=args.max_images,
+        sort_by=args.sort_by,
     )
 
 
@@ -37,7 +39,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-images",
         type=int,
         default=0,
-        help="Maximum number of images to process, using sorted order. Use 0 for no limit.",
+        help="Maximum number of images to process after sorting. Use 0 for no limit.",
+    )
+    parser.add_argument(
+        "--sort-by",
+        choices=IMAGE_SORT_MODES,
+        default="filename",
+        help="Sort images by filename, date taken, or date modified.",
     )
     return parser
 

@@ -39,6 +39,7 @@ Optional parameters:
 - `--channel-delta`: `10`
 - `--colour-pixel-ratio-percent`: `0.5`
 - `--max-images`: `0` (`0` means no limit)
+- `--sort-by`: `filename` (`filename`, `date-taken`, or `date-modified`)
 - `--workers`: `1`
 
 ### `difference_filter.py`
@@ -54,6 +55,7 @@ Optional parameters:
 - `--pixel-delta`: `12`
 - `--change-threshold-percent`: `5.0`
 - `--max-images`: `0` (`0` means no limit)
+- `--sort-by`: `filename` (`filename`, `date-taken`, or `date-modified`)
 - `--prefilter-size`: `64` (`0` disables the fast prefilter)
 - `--prefilter-band-percent`: `1.0`
 - `--workers`: `1`
@@ -69,4 +71,13 @@ Optional parameters:
 
 - `--fps`: `12`
 - `--max-images`: `0` (`0` means no limit)
+- `--sort-by`: `filename` (`filename`, `date-taken`, or `date-modified`)
+
+## Notes
+
+- By default the scripts process all images
+- By default, images are sorted by filename; use `--sort-by date-taken` or `--sort-by date-modified` to change the ordering
+- Sorting is applied across the full set of loaded images, not separately within each subfolder
+- `date-taken` uses EXIF capture time when available and falls back to file modified time
+- Use `--max-images` to limit a run for testing, for example `--max-images 100`
 
